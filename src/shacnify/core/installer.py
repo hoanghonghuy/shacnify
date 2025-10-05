@@ -6,6 +6,7 @@ from rich.panel import Panel
 import time
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
+from .planner import Plan
 
 from ..i18n.translator import t
 from ..utils import run_command
@@ -80,25 +81,29 @@ def setup_project(recipe=None, safe=False):
         
     console.print(f"   - {t('framework_detected')}: [bold green]{framework.upper()}[/bold green]")
 
-    if not safe:
-        try:
-            # 🔽 BẮT ĐẦU SỬA LỖI TẠI ĐÂY
-            confirmation = inquirer.confirm(
-                message=t('init_warning'),
-                default=False
-                # Bỏ 2 dòng sai:
-                # confirm_text=t('confirm_yes'),
-                # reject_text=t('confirm_no')
-            ).execute()
-            # 🔼 KẾT THÚC SỬA LỖI
+    plan = Plan(framework, safe_mode=safe)
+    plan.display()
 
-            if not confirmation:
-                console.print(f"[yellow]{t('init_aborted')}[/yellow]")
-                return
-        except KeyboardInterrupt:
-            console.print(f"\n[yellow]{t('init_aborted')}[/yellow]")
+    # Nếu không có hành động nào, dừng lại
+    if not plan.actions:
+        return
+
+    try:
+        # Câu hỏi xác nhận cuối cùng
+        confirmation = inquirer.confirm(
+            message="Bạn có muốn thực hiện các thay đổi trên không?",
+            default=False
+        ).execute()
+
+        if not confirmation:
+            console.print(f"[yellow]{t('init_aborted')}[/yellow]")
             return
+    except KeyboardInterrupt:
+        console.print(f"\n[yellow]{t('init_aborted')}[/yellow]")
+        return
     
+    # Xây dựng danh sách các bước dựa trên kế hoạch (có thể cải tiến sau)
+    # Hiện tại vẫn giữ nguyên các bước để đảm bảo tính đúng đắn
     install_steps = [
         ("dep_install", steps.install_tailwind_deps),
         ("tailwind_config", lambda: steps.configure_tailwind(framework, safe=safe)),
@@ -112,6 +117,7 @@ def setup_project(recipe=None, safe=False):
         ("shadcn_init", lambda: steps.initialize_shadcn(framework)),
         ("add_components", lambda: steps.add_components_during_init(recipe)),
     ])
+
 
     for name, func in install_steps:
         console.print(f"\n[cyan]--- {t(name)} ---[/cyan]")
