@@ -25,7 +25,6 @@ def restructure_src_directory():
     """Dọn dẹp thư mục src và tạo cấu trúc src-layout mới."""
     src_path = Path("src")
     
-    # --- Dọn dẹp ---
     files_to_remove = [
         src_path / "App.css",
         src_path / "App.tsx",
@@ -39,7 +38,6 @@ def restructure_src_directory():
     if assets_dir.exists() and not any(assets_dir.iterdir()):
         assets_dir.rmdir()
 
-    # --- Tạo cấu trúc mới ---
     dirs_to_create = [
         src_path / "components" / "ui",
         src_path / "lib",
@@ -49,13 +47,11 @@ def restructure_src_directory():
     for d in dirs_to_create:
         d.mkdir(parents=True, exist_ok=True)
     
-    # --- Tạo file mẫu mới ---
     write_file(src_path / "App.tsx", get_app_tsx_content())
     write_file(src_path / "main.tsx", get_main_tsx_content())
     write_file(src_path / "layouts" / "MainLayout.tsx", get_main_layout_tsx_content())
     write_file(src_path / "pages" / "HomePage.tsx", get_home_page_tsx_content())
     
-    # Cài đặt react-router-dom cần thiết cho cấu trúc mới
     return run_command("npm install react-router-dom")
 
 def _prompt_for_components():
@@ -64,9 +60,9 @@ def _prompt_for_components():
     default_selection = config.get("default_components", ["button", "input", "form", "card"])
     
     available_components = [
-        "button", "input", "form", "card", "dialog", "table", "sonner", "dropdown-menu", 
-        "avatar", "badge", "alert", "label", "select", "checkbox", "radio-group", 
-        "slider", "switch", "textarea"
+        "button", "input", "form", "card", "dialog", "table", "sonner", 
+        "dropdown-menu", "avatar", "badge", "alert", "label", "select", 
+        "checkbox", "radio-group", "slider", "switch", "textarea"
     ]
     available_components.sort()
 
@@ -97,13 +93,12 @@ def _install_components(component_list):
     all_success = True
     for comp in component_list:
         console.print(f"   - Đang thêm [bold magenta]{comp}[/bold magenta]...")
-        
         success = run_command(f"npx shadcn@latest add {comp} -y", interactive=True)
         
         if success:
-            console.print(f"   [green]✅ Đã thêm {comp} thành công[/green]")
+            console.print(f"   [green]✅ Đã thêm {comp} thành công[/green]\n")
         else:
-            console.print(f"   [red]❌ Thêm {comp} thất bại. Vui lòng kiểm tra file log.[/red]")
+            console.print(f"   [red]❌ Thêm {comp} thất bại. Vui lòng kiểm tra file log.[/red]\n")
             all_success = False
 
     return all_success
@@ -128,10 +123,15 @@ def add_components_during_init(recipe=None):
 def install_tailwind_deps():
     return run_command("npm install -D tailwindcss postcss autoprefixer tailwindcss-animate")
 
-def configure_tailwind(framework):
-    """Cấu hình Tailwind và ghi đè file CSS chính."""
-    tailwind_config_content = get_tailwind_config_content(framework)
-    if not write_file("tailwind.config.js", tailwind_config_content): return False
+def configure_tailwind(framework, safe=False):
+    """Cấu hình Tailwind. Ở chế độ an toàn, chỉ tạo file nếu chưa tồn tại."""
+    tailwind_config_path = Path("tailwind.config.js")
+    
+    if safe and tailwind_config_path.exists():
+        console.print("   - [dim]File 'tailwind.config.js' đã tồn tại, bỏ qua ghi đè ở chế độ an toàn.[/dim]")
+    else:
+        tailwind_config_content = get_tailwind_config_content(framework)
+        if not write_file(tailwind_config_path, tailwind_config_content): return False
     
     postcss_content = "module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }"
     if not write_file("postcss.config.js", postcss_content): return False
@@ -139,50 +139,49 @@ def configure_tailwind(framework):
     css_path_str = "app/globals.css" if framework == "nextjs" else "src/index.css"
     css_path = Path(css_path_str)
     
-    # Tạo file nếu nó không tồn tại
     if not css_path.exists():
         css_path.parent.mkdir(parents=True, exist_ok=True)
         css_path.touch()
 
     tailwind_directives = "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n"
-    # Luôn ghi đè file CSS chính để đảm bảo sạch sẽ
-    write_file(css_path_str, tailwind_directives)
+    content = css_path.read_text(encoding='utf-8')
+    if "@tailwind base;" not in content:
+        write_file(css_path, tailwind_directives + "\n" + content)
             
     return True
 
-def configure_alias():
-    """Cấu hình alias path cho jsconfig.json hoặc tsconfig.json."""
-    config_file = "tsconfig.json" if Path("tsconfig.json").exists() else "jsconfig.json"
+def configure_alias(safe=False):
+    """Cấu hình alias path. Ở chế độ an toàn, chỉ tạo/sửa file nếu chưa có alias."""
+    config_filename = "tsconfig.json" if Path("tsconfig.json").exists() else "jsconfig.json"
+    config_file = Path(config_filename)
     
-    try:
-        data = {}
-        if Path(config_file).exists():
-            data = json.loads(Path(config_file).read_text(encoding='utf-8'))
-        
-        if "compilerOptions" not in data: data["compilerOptions"] = {}
-        data["compilerOptions"]["baseUrl"] = "."
-        data["compilerOptions"]["paths"] = {"@/*": ["./src/*"]}
-        if "include" not in data: data["include"] = ["src"]
+    data = {}
+    if config_file.exists():
+        try:
+            data = json.loads(config_file.read_text(encoding='utf-8'))
+        except json.JSONDecodeError:
+            console.print(f"[yellow]⚠️  File '{config_filename}' có lỗi cú pháp, đang tạo lại.[/yellow]")
+            data = {}
+
+    # Chỉ sửa đổi nếu chưa có cấu hình paths
+    if safe and "paths" in data.get("compilerOptions", {}):
+        console.print(f"   - [dim]Alias path đã tồn tại trong '{config_filename}', bỏ qua ở chế độ an toàn.[/dim]")
+        return True
             
-        write_file(config_file, json.dumps(data, indent=2))
-    except Exception as e:
-        console.print(f"[yellow]⚠️  Không thể tự động cấu hình alias: {e}[/yellow]")
-        return False
+    if "compilerOptions" not in data: data["compilerOptions"] = {}
+    data["compilerOptions"]["baseUrl"] = "."
+    data["compilerOptions"]["paths"] = {"@/*": ["./src/*"]}
+    if "include" not in data: data["include"] = ["src"]
         
+    write_file(config_file, json.dumps(data, indent=2))
     return True
 
 def initialize_shadcn(framework):
-    """Tạo file components.json và cài các dependency cốt lõi của Shadcn.
-    
-    CẬP NHẬT: Chủ động cài thêm các dependency cho component FORM để tránh lỗi treo.
-    """
+    """Tạo file components.json và cài các dependency cốt lõi của Shadcn."""
     components_json_content = get_components_json_content(framework)
     if not write_file("components.json", components_json_content): return False
     
-    # Các dependency cốt lõi của Shadcn
     core_deps = "class-variance-authority clsx lucide-react tailwind-merge"
-    
-    # Các dependency đặc biệt cho FORM
     form_deps = "react-hook-form zod @hookform/resolvers"
     
     return run_command(f"npm install {core_deps} {form_deps}")

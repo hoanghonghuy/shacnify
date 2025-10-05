@@ -2,43 +2,47 @@
 import subprocess
 from pathlib import Path
 from rich.console import Console
-from .logger import logger, LOG_FILE
+from .logger import setup_logger, get_log_file_path 
 
 console = Console()
 
 def run_command(command, cwd=None, interactive=False):
     """Chạy một lệnh shell và ghi lại lỗi nếu có."""
-    logger.info(f"Running command: {command}")
+    project_name = Path(cwd).name if cwd else Path.cwd().name
+    current_logger = setup_logger(project_name)
+    
+    current_logger.info(f"--- Running Command ---")
+    current_logger.info(f"Command: {command}")
+    current_logger.info(f"Directory: {cwd or Path.cwd()}")
+    
     try:
         if interactive:
-            process = subprocess.run(command, shell=True, cwd=cwd, check=True)
+            subprocess.run(command, shell=True, cwd=cwd, check=True)
         else:
-            # Chụp lại stderr để ghi log nếu có lỗi
             process = subprocess.run(
-                command,
-                shell=True,
-                cwd=cwd,
-                check=True,
-                capture_output=True,
-                text=True,
-                encoding='utf-8'
+                command, shell=True, cwd=cwd, check=True,
+                capture_output=True, text=True, encoding='utf-8'
             )
     except subprocess.CalledProcessError as e:
-        # GHI LỖI CHI TIẾT VÀO FILE LOG
-        error_message = f"Command failed: {command}\nReturn Code: {e.returncode}"
-        # e.stderr chỉ tồn tại khi capture_output=True
-        stderr_output = e.stderr if hasattr(e, 'stderr') else "N/A"
-        error_message += f"\nStderr:\n{stderr_output}"
+        stderr_output = e.stderr if hasattr(e, 'stderr') and e.stderr else "Không có output lỗi chi tiết."
+        error_message = (
+            f"--- Command Failed ---\n"
+            f"Command: {command}\n"
+            f"Return Code: {e.returncode}\n"
+            f"Stderr:\n{stderr_output.strip()}"
+        )
+        current_logger.error(error_message)
         
-        logger.error(error_message)
-        
-        # Thông báo cho người dùng
+        # 🔽 Sử dụng hàm mới để lấy đường dẫn file log
+        log_path = get_log_file_path(project_name)
         console.print(f"[red]   Lỗi! Chi tiết đã được ghi vào file log:[/red]")
-        console.print(f"[dim]{LOG_FILE}[/dim]")
+        console.print(f"[dim]{log_path}[/dim]")
         return False
     except FileNotFoundError:
-        logger.error(f"Command not found: {command.split()[0]}")
+        current_logger.error(f"Command not found: {command.split()[0]}")
         return False
+        
+    current_logger.info("--- Command Succeeded ---")
     return True
 
 def write_file(path, content):

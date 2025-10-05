@@ -1,8 +1,10 @@
 # src/shacnify/cli.py
 import click
+import shutil
 from rich.console import Console
 from rich.table import Table
 
+from .logger import logger 
 from .i18n.translator import t, set_language
 from .core.installer import setup_project, create_new_project, add_specific_components
 from .core.config_manager import get_config, set_config_value, CONFIG_PATH
@@ -10,6 +12,20 @@ from .core.recipes import RECIPES
 
 console = Console()
 AVAILABLE_RECIPES = list(RECIPES.keys())
+
+def check_environment():
+    """Kiểm tra xem các dependency cần thiết (npm) có trong PATH không."""
+    if not shutil.which("npm"):
+        error_message = "Lệnh 'npm' không được tìm thấy. Node.js chưa được cài đặt hoặc chưa được thêm vào biến môi trường PATH."
+        
+        logger.error(f"--- PRE-FLIGHT CHECK FAILED ---")
+        logger.error(error_message)
+
+        console.print("[bold red]LỖI MÔI TRƯỜDNG[/bold red]")
+        console.print(error_message)
+        console.print("Vui lòng cài đặt Node.js (bao gồm npm) và đảm bảo đường dẫn được thêm vào PATH, sau đó khởi động lại terminal/IDE.")
+        return False
+    return True
 
 @click.group()
 def main_cli():
@@ -25,6 +41,7 @@ def main_cli():
 )
 def create(project_name, recipe):
     """Tạo một dự án React mới từ đầu và cài đặt Shadcn/UI."""
+    if not check_environment(): return
     console.print(f"[bold green]🚀 Bắt đầu tạo dự án mới: {project_name}[/bold green]")
     create_new_project(project_name, recipe)
 
@@ -34,15 +51,24 @@ def create(project_name, recipe):
     type=click.Choice(AVAILABLE_RECIPES, case_sensitive=False),
     help="Chọn một công thức cài đặt sẵn."
 )
-def init(recipe):
+@click.option(
+    "--safe",
+    is_flag=True,
+    help="Chạy ở chế độ an toàn, bỏ qua việc tái cấu trúc thư mục src và ghi đè file."
+)
+def init(recipe, safe):
     """Khởi tạo Shadcn/UI và Tailwind CSS cho dự án hiện tại."""
+    if not check_environment(): return
     console.print(f"[bold cyan]{t('init_start')}[/bold cyan]")
-    setup_project(recipe)
+    if safe:
+        console.print("[yellow]🟡 Chạy ở chế độ an toàn (safe mode). Sẽ không tái cấu trúc thư mục 'src' hoặc ghi đè file cấu hình.[/yellow]")
+    setup_project(recipe, safe)
 
 @main_cli.command()
 @click.argument("components", nargs=-1)
 def add(components):
     """Thêm một hoặc nhiều component vào dự án đã khởi tạo."""
+    if not check_environment(): return
     if not components:
         console.print("[cyan]Chạy ở chế độ tương tác...[/cyan]")
     add_specific_components(components)
@@ -92,7 +118,6 @@ def lang():
 def set_lang_command(language_code):
     """Đặt ngôn ngữ mặc định (en hoặc vi)."""
     set_language(language_code)
-    # Tải lại translator để hiển thị đúng ngôn ngữ
     new_t = __import__('shacnify.i18n.translator', fromlist=['t']).t
     console.print(f"🌍 [green]{new_t('lang_changed')}[/green]")
 

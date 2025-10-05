@@ -26,5 +26,9 @@
     "setting_up_shadcn": "Đang cài đặt Shadcn/UI...",
     "framework_detected": "Đã phát hiện framework",
     "shacnify_will_handle_install": "shacnify sẽ tự động cài đặt ở bước tiếp theo.",
-    "restructure_src": "Tái cấu trúc thư mục src"
+    "restructure_src": "Tái cấu trúc thư mục src",
+    "init_warning": "Cảnh báo: Lệnh này sẽ ghi đè lên các file cấu hình (như tailwind.config.js) và tái cấu trúc thư mục 'src'. Điều này có thể gây mất dữ liệu. Bạn có muốn tiếp tục không?",
+    "confirm_yes": "Có, tiếp tục",
+    "confirm_no": "Không, hủy bỏ",
+    "init_aborted": "Quá trình khởi tạo đã bị hủy bởi người dùng."
 }

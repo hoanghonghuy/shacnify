@@ -26,5 +26,9 @@
     "setting_up_shadcn": "Setting up Shadcn/UI...",
     "framework_detected": "Framework detected",
     "shacnify_will_handle_install": "shacnify will automatically handle the installation in the next step.",
-    "restructure_src": "Restructuring src directory"
+    "restructure_src": "Restructuring src directory",
+    "init_warning": "Warning: This command will overwrite configuration files (like tailwind.config.js) and restructure the 'src' directory. This may result in data loss. Do you want to continue?",
+    "confirm_yes": "Yes, proceed",
+    "confirm_no": "No, cancel",
+    "init_aborted": "Initialization cancelled by user."
 }

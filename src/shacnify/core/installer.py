@@ -15,6 +15,7 @@ from . import steps
 console = Console()
 
 def create_new_project(project_name, recipe=None):
+    """Hỏi người dùng template và tạo dự án React mới."""
     if Path(project_name).exists():
         console.print(f"[bold red]❌ {t('folder_exists').format(project_name=project_name)}[/bold red]")
         return
@@ -36,7 +37,7 @@ def create_new_project(project_name, recipe=None):
             f">>> [bold yellow]Vui lòng chọn 'No' (hoặc bấm N)[/bold yellow] <<<\n\n"
             f"[dim]{t('shacnify_will_handle_install')}[/dim]"
         )
-        console.print(Panel(warning_message, title="[bold yellow]⚠️LƯU Ý QUAN TRỌNG[/bold yellow]", border_style="yellow", expand=False))
+        console.print(Panel(warning_message, title="[bold yellow]⚠️ LƯU Ý QUAN TRỌNG[/bold yellow]", border_style="yellow", expand=False))
         console.print("[dim]Chuẩn bị trong 2 giây...[/dim]")
         time.sleep(2)
     
@@ -66,10 +67,11 @@ def create_new_project(project_name, recipe=None):
     console.print(f"[green]✅ {t('dependencies_installed')}[/green]")
     
     console.print(f"\n[cyan]STEP 3: {t('setting_up_shadcn')}[/cyan]")
-    setup_project(recipe)
+    # Chạy init ở chế độ bình thường (không safe) khi tạo mới
+    setup_project(recipe, safe=False)
 
 
-def setup_project(recipe=None):
+def setup_project(recipe=None, safe=False):
     """Hàm chính điều phối toàn bộ quá trình cài đặt."""
     framework = detect_framework()
     if not framework:
@@ -77,36 +79,55 @@ def setup_project(recipe=None):
         return
         
     console.print(f"   - {t('framework_detected')}: [bold green]{framework.upper()}[/bold green]")
+
+    if not safe:
+        try:
+            # 🔽 BẮT ĐẦU SỬA LỖI TẠI ĐÂY
+            confirmation = inquirer.confirm(
+                message=t('init_warning'),
+                default=False
+                # Bỏ 2 dòng sai:
+                # confirm_text=t('confirm_yes'),
+                # reject_text=t('confirm_no')
+            ).execute()
+            # 🔼 KẾT THÚC SỬA LỖI
+
+            if not confirmation:
+                console.print(f"[yellow]{t('init_aborted')}[/yellow]")
+                return
+        except KeyboardInterrupt:
+            console.print(f"\n[yellow]{t('init_aborted')}[/yellow]")
+            return
     
     install_steps = [
         ("dep_install", steps.install_tailwind_deps),
-        ("tailwind_config", lambda: steps.configure_tailwind(framework)),
-        ("restructure_src", steps.restructure_src_directory),
-        ("alias_config", steps.configure_alias),
+        ("tailwind_config", lambda: steps.configure_tailwind(framework, safe=safe)),
+    ]
+    
+    if not safe:
+        install_steps.append(("restructure_src", steps.restructure_src_directory))
+
+    install_steps.extend([
+        ("alias_config", lambda: steps.configure_alias(safe=safe)),
         ("shadcn_init", lambda: steps.initialize_shadcn(framework)),
         ("add_components", lambda: steps.add_components_during_init(recipe)),
-    ]
+    ])
 
-    # 🔽 LUỒNG HIỂN THỊ MỚI
     for name, func in install_steps:
-        # Hiển thị tiêu đề của bước trước khi chạy
         console.print(f"\n[cyan]--- {t(name)} ---[/cyan]")
-        
-        # Gọi hàm thực thi bước đó
         success = func()
         
-        # Sau khi chạy xong, mới hiển thị kết quả
         if success:
             console.print(f"[green]✅ {t(name)} {t('completed')}[/green]")
         else:
             console.print(f"[red]❌ {t(name)} {t('failed')}[/red]")
             console.print(f"[bold red]❌ {t('step_failed')}[/bold red]")
-            # Dừng lại nếu có lỗi
             return
     
     console.print(f"\n[bold green]🎉 {t('init_done')}[/bold green]")
 
 def add_specific_components(components: tuple):
+    """Hàm xử lý cho lệnh 'shacnify add'."""
     if not Path("components.json").exists():
         console.print("[bold red]❌ Lỗi: Shadcn/UI chưa được khởi tạo.[/bold red]")
         console.print("   Vui lòng chạy [cyan]shacnify init[/cyan] trước.")
